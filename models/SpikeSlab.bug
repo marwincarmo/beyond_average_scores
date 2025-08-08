@@ -1,0 +1,33 @@
+model {
+  linpred <- X * beta
+  for (i in 1:N) {
+   # Likelihood
+    y[i] ~ dnorm(mu[i], precision_j[unit[i]])  
+    mu[i] <- linpred[i] + theta[unit[i]]  
+  }
+
+  for (j in 1:J) {
+    # Location
+    # non-centered parameterization
+    beta_raw[j] ~ dnorm(0, 1)
+    theta[j] <- tau * beta_raw[j]
+
+    # Scale
+    gamma[j] ~ dbern(0.5)
+    s_beta_0_raw[j] ~ dnorm(0,1)
+    s_theta_0[j] <- s_tau_0 * s_beta_0_raw[j] * gamma[j]
+    s_beta_0_j[j] <- s_beta_0 + s_theta_0[j]
+    precision_j[j] <- 1/exp(s_beta_0_j[j])
+  }
+
+  beta0 ~ dnorm(0, 0.01)
+  s_beta_0 ~ dnorm(0, 0.01)
+  
+  # for (p in 1:P) {
+  #   beta[p] ~ dnorm(0, 0.01)
+  # }
+  beta[1] ~ dnorm(0, 0.01)
+
+  tau ~ dt(0, 1, 3)T(0, )
+  s_tau_0 ~ dt(0, 1, 3)T(0, )
+}
