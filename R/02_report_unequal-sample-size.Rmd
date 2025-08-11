@@ -1,0 +1,168 @@
+---
+title: "SS-MELSM vs Two-stage HLM"
+subtitle: "Small and unbalanced samples"
+author: Marwin Carmo
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.width=10, fig.height=7, echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+```
+
+```{r}
+results_raw <- readRDS("../data/output/02_simulation_unbalanced_results.rds")
+
+
+results_df <- results_raw |>
+  dplyr::mutate(
+         bias_ivd = ivd_sd_scl_Intc - scl_int_sd,
+         bias_hlm = hlm_sd_scl_Intc - scl_int_sd,
+         rmse_ivd = sqrt((ivd_sd_scl_Intc - scl_int_sd)^2),
+         rmseq_hlm = sqrt((hlm_sd_scl_Intc - scl_int_sd)^2)) |>
+  tidyr::pivot_longer(
+    cols = matches("^(tp|fp|fn|tn|bias|rmse)_"),  # Metrics prefixed columns
+    names_to = c("metric", "model"),
+    names_pattern = "^(tp|fp|fn|tn|bias|rmse)_(.+)$",
+    values_to = "value"
+    ) |>
+  tidyr::pivot_wider(
+         names_from = metric,
+         values_from = value) |>
+  tidyr::replace_na(list(fn = 0)) |>
+  dplyr::mutate(
+         tpr = tp / (tp + fn),
+         fpr = fp / (fp + tn),
+         tnr = tn / (tn + fp),
+         precision = tp / (tp + fp),
+         f1 = 2 * (precision * tpr) / (precision + tpr)
+         )
+```
+
+# True Positive Rate
+
+```{r}
+results_df |>
+  dplyr::filter(p_slab != 0) |>
+  dplyr::mutate(scl_int_sd = factor(round(scl_int_sd, 2))) |>
+  ggplot(aes(y = tpr, x = model, color = model)) +
+  geom_point(position = position_jitter(width = 0.2), alpha = 0.6) +
+  stat_summary(
+    fun = mean,
+    geom = "point",
+    size = 4,
+    shape = 21,
+    aes(fill = model), # fill uses model colors
+    color = "black",   # black outline
+    stroke = 1         # thickness of outline
+  ) +
+  theme_bw(16) +
+  scale_color_manual(
+      values = c("coral", "cornflowerblue")
+    , labels = c("Two-stage HLM", "SS-MELSM")
+    ) +
+   scale_fill_manual(
+      values = c("coral", "cornflowerblue")
+    , labels = c("Two-stage HLM", "SS-MELSM")
+    ) +
+  theme(legend.position = "bottom") +
+  facet_grid(n_schools ~ n_students, labeller = label_both)
+```
+
+# False Positive Rate
+
+```{r}
+results_df |>
+  dplyr::mutate(scl_int_sd = factor(round(scl_int_sd, 2))) |>
+  ggplot(aes(y = fpr, x = scl_int_sd, color = model)) +
+  geom_point(position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.7),
+             alpha = 0.6) +
+  stat_summary(
+    fun = mean,
+    geom = "point",
+    size = 3,
+    shape = 21,
+    aes(fill = model), 
+    color = "black", 
+    stroke = 1,
+    position = position_dodge(width = 0.7)
+  ) +
+  theme_bw(16) +
+  scale_color_manual(
+      values = c("coral", "cornflowerblue")
+    , labels = c("Two-stage HLM", "SS-MELSM")
+    ) +
+   scale_fill_manual(
+      values = c("coral", "cornflowerblue")
+    , labels = c("Two-stage HLM", "SS-MELSM")
+    ) +
+  theme(legend.position = "bottom") +
+  facet_grid(n_schools ~ n_students, labeller = label_both)
+```
+
+# Bias
+
+```{r}
+results_df |>
+  dplyr::mutate(scl_int_sd = factor(round(scl_int_sd, 2))) |>
+  ggplot(aes(y = bias, x = scl_int_sd, color = model)) +
+  geom_point(position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.7),
+             alpha = 0.6) +
+  stat_summary(
+    fun = mean,
+    geom = "point",
+    size = 3,
+    shape = 21,
+    aes(fill = model), 
+    color = "black", 
+    stroke = 1,
+    position = position_dodge(width = 0.7)
+  ) +
+  theme_bw(16) +
+  geom_hline(aes(yintercept = 0)) +
+  scale_color_manual(
+      values = c("coral", "cornflowerblue")
+    , labels = c("Two-stage HLM", "SS-MELSM")
+    ) +
+   scale_fill_manual(
+      values = c("coral", "cornflowerblue")
+    , labels = c("Two-stage HLM", "SS-MELSM")
+    ) +
+  theme(legend.position = "bottom") +
+  facet_grid(n_schools ~ n_students, labeller = label_both)
+```
+
+# F1-score
+
+```{r}
+results_df |>
+  dplyr::filter(p_slab != 0) |>
+  dplyr::mutate(scl_int_sd = factor(round(scl_int_sd, 2))) |>
+  ggplot(aes(y = f1, x = scl_int_sd, color = model)) +
+  geom_point(position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.7),
+             alpha = 0.6) +
+  stat_summary(
+    fun = mean,
+    geom = "point",
+    size = 3,
+    shape = 21,
+    aes(fill = model), 
+    color = "black", 
+    stroke = 1,
+    position = position_dodge(width = 0.7)
+  ) +
+  theme_bw(16) +
+  scale_color_manual(
+      values = c("coral", "cornflowerblue")
+    , labels = c("Two-stage HLM", "SS-MELSM")
+    ) +
+   scale_fill_manual(
+      values = c("coral", "cornflowerblue")
+    , labels = c("Two-stage HLM", "SS-MELSM")
+    ) +
+  theme(legend.position = "bottom") +
+  facet_grid(n_schools ~ n_students, labeller = label_both)
+```

@@ -1,0 +1,28 @@
+---
+title: "IVD Simulations"
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.width=10, fig.height=7)
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(reactable)
+library(MESS)
+library(latex2exp)
+```
+
+
+```{r}
+results_df <- readRDS("data/output/01_simulation_main_results.rds")
+
+head(results_df)
+
+```
