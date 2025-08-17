@@ -21,8 +21,32 @@ library(latex2exp)
 
 
 ```{r}
-results_df <- readRDS("data/output/01_simulation_main_results.rds")
+results_df <- readRDS("../data/output/01_simulation_main_results.rds")
 
 head(results_df)
 
+```
+
+
+```{r}
+results0 <- readRDS("data/output//01_simulation_main_results0.rds")
+
+results0 |>
+  dplyr::mutate(scl_int_sd = factor(round(sd_slab, 2)),
+                bias = ivd_sd_scl_Intc - sd_slab) |>
+  ggplot(aes(y = bias, x = scl_int_sd)) +
+  geom_boxplot() +
+  theme_bw(16) +
+  geom_hline(aes(yintercept = 0)) +
+  theme(legend.position = "bottom") +
+  facet_grid(n_schools ~ n_students, labeller = label_both)
+
+
+results0 |>
+  dplyr::mutate(
+           bias = ivd_sd_scl_Intc - sd_slab) |>
+  #dplyr::group_by(n_students, n_schools) |>
+  dplyr::summarise(mean = mean(bias),
+                   min = min(bias),
+                   max = max(bias))
 ```
