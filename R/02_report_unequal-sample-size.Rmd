@@ -1,6 +1,6 @@
 ---
 title: "SS-MELSM vs Two-stage HLM"
-subtitle: "Small and unbalanced samples"
+subtitle: "Study 2: Small and unbalanced samples"
 author: Marwin Carmo
 ---
 
@@ -69,7 +69,9 @@ results_df |>
     , labels = c("Two-stage HLM", "SS-MELSM")
     ) +
   theme(legend.position = "bottom") +
-  facet_grid(n_schools ~ n_students, labeller = label_both)
+  facet_grid(n_schools ~ n_students, labeller = label_both) +
+  labs(x = NULL,
+       y = "True Positive Rate")
 ```
 
 # False Positive Rate
@@ -100,39 +102,9 @@ results_df |>
     , labels = c("Two-stage HLM", "SS-MELSM")
     ) +
   theme(legend.position = "bottom") +
-  facet_grid(n_schools ~ n_students, labeller = label_both)
-```
-
-# Bias
-
-```{r}
-results_df |>
-  dplyr::mutate(scl_int_sd = factor(round(scl_int_sd, 2))) |>
-  ggplot(aes(y = bias, x = scl_int_sd, color = model)) +
-  geom_point(position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.7),
-             alpha = 0.6) +
-  stat_summary(
-    fun = mean,
-    geom = "point",
-    size = 3,
-    shape = 21,
-    aes(fill = model), 
-    color = "black", 
-    stroke = 1,
-    position = position_dodge(width = 0.7)
-  ) +
-  theme_bw(16) +
-  geom_hline(aes(yintercept = 0)) +
-  scale_color_manual(
-      values = c("coral", "cornflowerblue")
-    , labels = c("Two-stage HLM", "SS-MELSM")
-    ) +
-   scale_fill_manual(
-      values = c("coral", "cornflowerblue")
-    , labels = c("Two-stage HLM", "SS-MELSM")
-    ) +
-  theme(legend.position = "bottom") +
-  facet_grid(n_schools ~ n_students, labeller = label_both)
+  facet_grid(n_schools ~ n_students, labeller = label_both)+
+  labs(x = NULL,
+       y = "False Positive Rate")
 ```
 
 # F1-score
@@ -164,5 +136,41 @@ results_df |>
     , labels = c("Two-stage HLM", "SS-MELSM")
     ) +
   theme(legend.position = "bottom") +
-  facet_grid(n_schools ~ n_students, labeller = label_both)
+  facet_grid(n_schools ~ n_students, labeller = label_both) +
+  labs(x = "True random intercept SD",
+       y = "F1 score")
+```
+
+# Bias
+
+```{r}
+results_df |>
+  dplyr::mutate(scl_int_sd = factor(round(scl_int_sd, 2))) |>
+  ggplot(aes(y = bias, x = scl_int_sd, color = model)) +
+  geom_point(position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.7),
+             alpha = 0.6) +
+  stat_summary(
+    fun = mean,
+    geom = "point",
+    size = 3,
+    shape = 21,
+    aes(fill = model), 
+    color = "black", 
+    stroke = 1,
+    position = position_dodge(width = 0.7)
+  ) +
+  theme_bw(16) +
+  geom_hline(aes(yintercept = 0)) +
+  scale_color_manual(
+      values = c("coral", "cornflowerblue")
+    , labels = c("Two-stage HLM", "SS-MELSM")
+    ) +
+   scale_fill_manual(
+      values = c("coral", "cornflowerblue")
+    , labels = c("Two-stage HLM", "SS-MELSM")
+    ) +
+  theme(legend.position = "bottom") +
+  facet_grid(n_schools ~ n_students, labeller = label_both) +
+  labs(x = "True random intercept SD",
+       y = "Bias")
 ```

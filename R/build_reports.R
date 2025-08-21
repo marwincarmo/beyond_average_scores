@@ -13,10 +13,3 @@ for (i in reports_to_render) {
                output_file = out_name
              )
 }
-
-rmarkdown::render(
-  input = "R/02_report_unequal-sample-size.Rmd",
-  output_format = "pdf_document",
-  output_dir = "output",
-  output_file = "02_report_unequal-sample-size-exported.pdf"
-)

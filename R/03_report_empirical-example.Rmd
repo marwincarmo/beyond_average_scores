@@ -1,0 +1,215 @@
+---
+title: "SS-MELSM vs Two-stage HLM"
+subtitle: "Empirical example: Saeb"
+author: Marwin Carmo
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.width=10, fig.height=7, echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+
+```{r}
+library(ivd)
+library(data.table)
+library(ggplot2)
+```
+
+The illustration uses openly accessible data from The Basic Education Evaluation System (Saeb) conducted by Brazil’s National Institute for Educational Studies and Research (Inep), available at https://www.gov.br/inep/pt-br/areas-de-atuacao/avaliacao-e-exames-educacionais/saeb/resultados. It is also available as the `saeb` dataset in the `ivd` package.
+
+## Data preparation
+
+Separate within- from between-school effects. That is, besides `student_ses`, compute `school_ses`.
+
+```{r}
+## Calculate school-level SES
+school_ses <- saeb[, .(school_ses = mean(student_ses, na.rm = TRUE)), by = school_id]
+
+## Join the school_ses back to the original dataset
+saeb <- saeb[school_ses, on = "school_id"]
+
+## Define student level SES as deviation from the school SES
+saeb$student_ses <- saeb$student_ses - saeb$school_ses
+
+## Grand mean center school ses
+saeb$school_ses <- c(scale(saeb$school_ses, scale = FALSE))
+```
+
+## Fit SS-MELSM with `ivd`
+
+```{r}
+out <- ivd(location_formula = math_proficiency ~ student_ses * school_ses + (1|school_id),
+           scale_formula =  ~ student_ses * school_ses + (1|school_id),
+           data = saeb,
+           niter = 3000, nburnin = 5000, WAIC = TRUE, workers = 6)
+```
+
+## Posterior Inclusion Probabilities
+
+```{r}
+plot(out, type = "pip") +
+  theme_light(16)
+```
+
+## Within-cluster SD
+
+```{r}
+plot(out, type = "funnel") +
+  theme_light(16) +
+  scale_x_continuous(limits = c(0.625, .90),
+                     breaks = seq(0.65, .85, by = 0.05))
+```
+
+## Math achivement
+
+```{r}
+plot(out, type = "outcome") +
+  theme_light(16) +
+  labs(
+       x = "Standardized Math achievement") +
+  scale_y_continuous(limits = c(0.25, 1.0), breaks = seq(0.25, 1, by = 0.25)) +
+  theme(
+    legend.background = element_rect(fill = "transparent"),
+    legend.position = c(0.85, 0.25),
+    axis.ticks.y = element_blank(),   # Remove y-axis ticks
+  )
+```
+
+## Caterpillar plot
+
+```{r}
+# We'll need to use `.summary_table()` and `.extract_to_mcmc()`, which are internal functions from `ivd`, that are not meant for direct use
+
+col_names <- dimnames(ivd:::.summary_table(out$samples[[1]]$samples ))[[2]]
+Kr <- out$nimble_constants$Kr
+
+## find scale random effects
+## Extract numbers and find locations
+column_indices <- sapply(col_names, function(x) {
+  if (grepl("^u\\[", x)) {  # Check if the name starts with 'u['
+    ## Extracting numbers
+    nums <- as.numeric(unlist(strsplit(gsub("[^0-9,]", "", x), ",")))
+    ## Check if second number (column index) is greater than Kr
+    return(nums[2] > Kr)
+  } else {
+    return(FALSE )
+  }
+})
+
+scale_ranef_pos <- which(column_indices)
+posterior_samples <- do.call(rbind, lapply(ivd:::.extract_to_mcmc(out), FUN = function(x) x[, scale_ranef_pos]))
+## Find the largest residual SD
+## Extract the posterior mean of the fixed effect:
+zeta <- mean( unlist( lapply(ivd:::.extract_to_mcmc( out ), FUN = function(x) mean(x[, "zeta[1]"])) ) )
+## Extract the posterior mean of each random effect:
+u <- colMeans(posterior_samples)
+
+tau <- exp(zeta + u )
+
+## find the median
+mid_indices <- c(160/2, 160/2 + 1)
+sorted_vec <- sort(tau)
+middle_values <- sorted_vec[mid_indices]
+
+df_hist <- data.frame(
+  min = posterior_samples[, which(tau == min(tau))],
+  median = posterior_samples[, which(tau %in% middle_values[1])],
+  max = posterior_samples[, which(tau == max(tau))]
+)
+
+facet_labels <- c("max" = "A. School (114)",# with the largest residual SD", 
+                  "min" = "B. School (46)",#, with the smallest residual SD", 
+                  "median" = "C. School (38)"# with median residual SD"
+                  )
+
+df_hist |> 
+  tidyr::pivot_longer(cols = dplyr::everything(),
+                      names_to = "text",
+                      values_to = "posterior") |> 
+  dplyr::mutate(text = factor(text, levels = c("max", "min", "median"))) |> 
+  #dplyr::mutate(text = forcats::fct_reorder(text, posterior)) |> 
+  ggplot(aes(x=posterior, color=text, fill=text)) +
+  geom_histogram(alpha=0.6) +
+  scale_fill_manual(values=c("#00A9FF", #114
+                             "#C77CFF", #46
+                             "#000000" #38
+                             )) +
+  scale_color_manual(values=c("#00A9FF", #114
+                              "#C77CFF", #46
+                              "#000000" #38
+  )) +
+  facet_wrap(~text,
+             labeller = labeller(text = facet_labels)) +
+  theme_minimal(16) +
+  guides(color = "none", fill = "none") +
+  theme(
+    axis.text.y = element_blank(),   # Hides the y-axis text (values)
+    axis.title.y = element_blank()   # Hides the y-axis title (label)
+  ) +
+  labs(x = "Spike-and-slab posterior distribution")
+```
+
+## Caterpillar plot
+
+```{r}
+
+col_names <- dimnames(ivd:::.summary_table(out$samples[[1]]$samples ))[[2]]
+Kr <- out$nimble_constants$Kr
+cols_to_keep <- c( )
+## Find spike and slab variables
+col_ss <- col_names[ grepl( "^ss\\[", col_names ) ]
+for(col_name in col_ss) {
+  col_number <- as.numeric(unlist(regmatches(col_name, gregexpr("[0-9]+", col_name)))[1])
+  if(col_number >  Kr ) {
+    cols_to_keep <- c(cols_to_keep,  col_name )
+  }
+}
+## Subset each MCMC matrix to keep only the relevant columns
+subsamples <- lapply(ivd:::.extract_to_mcmc(out), function(x) x[, cols_to_keep])
+## Calculate column means for each subsetted MCMC matrix
+means_list <- lapply(subsamples, colMeans)
+## Average across the lists and chains
+final_means <- Reduce("+", means_list) / length(means_list)
+## assign the means to the specific random effects
+ss_means <- list()
+## Select the ss effect(s)
+Sr <- out$nimble_constants$Sr
+for(i in 1:Sr ) {
+  index <- paste0("\\[",  i+Kr)
+  position_ss_value <- grepl(index, names(means_list[[1]]) )
+  ss_means[[i]] <- final_means[position_ss_value]
+}
+
+df_pip <- data.frame(id = seq_len(length(ss_means[[1]])),
+                     pip = ss_means[[1]])
+
+u_summary <- data.frame(
+  RandomEffect = 1:length(u),
+  Median = apply(posterior_samples, 2, function(x) quantile(x, probs = 0.5)),
+  Lower95CI = apply(posterior_samples, 2, function(x) quantile(x, probs = 0.025)),
+  Upper95CI = apply(posterior_samples, 2, function(x) quantile(x, probs = 0.975)),
+  pip = df_pip$pip
+)
+
+u_ordered <- u_summary[order(u_summary[, "Median"]), ]
+u_ordered$ordered <- 1:nrow(u_summary )
+
+plt <- ggplot(u_ordered, aes(x = ordered, y = Median)) +
+  geom_pointrange(
+    aes(ymin = Lower95CI, ymax = Upper95CI),
+    size = 0.7,  # Thicker lines for better visibility
+    linetype = "solid",
+    color = "black",
+    alpha = 0.7
+  ) +
+  geom_point(data = subset(u_ordered, pip < 0.75), 
+             size = 2.5, stroke = .1, aes(size=tau), alpha = .3,
+             shape = 21, fill = "black", color = "black") +
+  geom_point(data = subset(u_ordered, pip >= 0.75),
+             aes(fill = factor(RandomEffect)), size = 2.5, stroke = .1, 
+             shape = 21, color = "black") +
+  geom_abline(intercept = 0, slope = 0, lty =  3) +
+  labs(color = "School ID", fill = "School ID", y = "Median Random effect estimate") +
+  theme_minimal(16)
+  
+```

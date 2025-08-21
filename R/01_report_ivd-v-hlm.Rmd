@@ -1,14 +1,11 @@
 ---
-title: "IVD Simulations"
-output:
-  html_document:
-    df_print: paged
-    toc: yes
-    toc_float: yes
+title: "SS-MELSM vs Two-stage HLM"
+subtitle: "Study 1: Main simulation"
+author: Marwin Carmo
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(fig.width=10, fig.height=7)
+knitr::opts_chunk$set(fig.width=10, fig.height=7, echo = FALSE, message = FALSE, warning = FALSE)
 ```
 
 ```{r}
@@ -21,32 +18,187 @@ library(latex2exp)
 
 
 ```{r}
-results_df <- readRDS("../data/output/01_simulation_main_results.rds")
+# Data import and transformation
 
-head(results_df)
+results_raw <- readRDS("../data/output/01_simulation_main_results.rds")
+
+results_df <- results_raw |>
+  dplyr::mutate(
+         bias_ivd = jags_sd_scl_Intc - sd_slab,
+         bias_hlm = sd_scl_Intc - sd_slab,
+         rmse_ivd = sqrt((jags_sd_scl_Intc - sd_slab)^2),
+         rmse_hlm = sqrt((sd_scl_Intc - sd_slab)^2)) |>
+  tidyr::pivot_longer(
+    cols = matches("^(tp|fp|fn|tn|bias|rmse)_"),  # Metrics prefixed columns
+    names_to = c("metric", "model"),
+    names_pattern = "^(tp|fp|fn|tn|bias|rmse)_(.+)$",
+    values_to = "value"
+    ) |>
+  # fix model names
+  dplyr::mutate(model = dplyr::case_when(
+                               model == "rb" ~ "hlm",
+                               model == "jags" ~ "ivd",
+                               TRUE ~ model)) |>
+  tidyr::pivot_wider(
+         names_from = metric,
+         values_from = value) |>
+  tidyr::replace_na(list(fn = 0)) |>
+  dplyr::mutate(
+         tpr = tp / (tp + fn),
+         fpr = fp / (fp + tn),
+         tnr = tn / (tn + fp),
+         precision = tp / (tp + fp),
+         f1 = 2 * (precision * tpr) / (precision + tpr)
+         )
 
 ```
 
+# True Positive Rate (Sensitivity)
 
 ```{r}
-results0 <- readRDS("data/output//01_simulation_main_results0.rds")
-
-results0 |>
-  dplyr::mutate(scl_int_sd = factor(round(sd_slab, 2)),
-                bias = ivd_sd_scl_Intc - sd_slab) |>
-  ggplot(aes(y = bias, x = scl_int_sd)) +
-  geom_boxplot() +
+results_df |>
+  dplyr::filter(p_slab != 0,
+                #n_students == 75
+                n_schools == 150
+                ) |>
+  dplyr::mutate(sd_slab = factor(round(sd_slab,2))) |>
+  ggplot(aes(y = tpr, x = sd_slab, color = model, fill = model)) +
+  geom_boxplot(position = position_dodge(preserve = "single"), alpha = 0.5 )+
   theme_bw(16) +
-  geom_hline(aes(yintercept = 0)) +
+  scale_color_manual(
+      values = c("coral", "cornflowerblue")
+    , labels = c("Two-stage HLM", "SS-MELSM")
+    ) +
+   scale_fill_manual(
+      values = c("coral", "cornflowerblue")
+    , labels = c("Two-stage HLM", "SS-MELSM")
+    ) +
   theme(legend.position = "bottom") +
-  facet_grid(n_schools ~ n_students, labeller = label_both)
+  facet_grid(n_students
+             #n_schools
+             ~ p_slab, labeller = label_both) +
+  labs(x = "True random intercept SD",
+       y = "True Positive Rate",
+       title = "TPR for 150 schools")
 
+```
 
-results0 |>
-  dplyr::mutate(
-           bias = ivd_sd_scl_Intc - sd_slab) |>
-  #dplyr::group_by(n_students, n_schools) |>
-  dplyr::summarise(mean = mean(bias),
-                   min = min(bias),
-                   max = max(bias))
+# False Positive Rate (Specificity)
+
+```{r}
+results_df |>
+  dplyr::filter(#p_slab != 0,
+                #n_students == 75
+                n_schools == 150
+                ) |>
+  dplyr::mutate(sd_slab = factor(round(sd_slab,2))) |>
+  ggplot(aes(y = fpr, x = sd_slab, color = model, fill = model)) +
+  geom_boxplot(position = position_dodge(preserve = "single"), alpha = 0.5 )+
+  theme_bw(16) +
+  scale_color_manual(
+      values = c("coral", "cornflowerblue")
+    , labels = c("Two-stage HLM", "SS-MELSM")
+    ) +
+   scale_fill_manual(
+      values = c("coral", "cornflowerblue")
+    , labels = c("Two-stage HLM", "SS-MELSM")
+    ) +
+  theme(legend.position = "bottom") +
+  facet_grid(n_students
+             #n_schools
+             ~ p_slab, labeller = label_both) +
+  labs(x = "True random intercept SD",
+       y = "False Positive Rate",
+       title = "FPR for 150 schools")
+
+```
+
+# F1 score
+
+```{r}
+results_df |>
+  dplyr::filter(p_slab != 0,
+                #n_students == 75
+                n_schools == 150
+                ) |>
+  dplyr::mutate(sd_slab = factor(round(sd_slab,2))) |>
+  ggplot(aes(y = f1, x = sd_slab, color = model, fill = model)) +
+  geom_boxplot(position = position_dodge(preserve = "single"), alpha = 0.5 )+
+  theme_bw(16) +
+  scale_color_manual(
+      values = c("coral", "cornflowerblue")
+    , labels = c("Two-stage HLM", "SS-MELSM")
+    ) +
+   scale_fill_manual(
+      values = c("coral", "cornflowerblue")
+    , labels = c("Two-stage HLM", "SS-MELSM")
+    ) +
+  theme(legend.position = "bottom") +
+  facet_grid(n_students
+             #n_schools
+             ~ p_slab, labeller = label_both) +
+  labs(x = "True random intercept SD",
+       y = "F1 score",
+       title = "F1 score for 150 schools")
+
+```
+
+# Bias
+
+```{r}
+results_df |>
+  dplyr::filter(#p_slab != 0,
+                n_students == 75
+                #n_schools == 150
+                ) |>
+  dplyr::mutate(sd_slab = factor(round(sd_slab,2))) |>
+  ggplot(aes(y = bias, x = sd_slab, color = model, fill = model)) +
+  geom_boxplot(position = position_dodge(preserve = "single"), alpha = 0.5 )+
+  theme_bw(16) +
+  scale_color_manual(
+      values = c("coral", "cornflowerblue")
+    , labels = c("Two-stage HLM", "SS-MELSM")
+    ) +
+   scale_fill_manual(
+      values = c("coral", "cornflowerblue")
+    , labels = c("Two-stage HLM", "SS-MELSM")
+    ) +
+  theme(legend.position = "bottom") +
+  facet_grid(#n_students
+             n_schools
+             ~ p_slab, labeller = label_both) +
+  labs(x = "True random intercept SD",
+       y = "Bias",
+       title = "Biasfor 75 students")
+
+```
+
+# RMSE
+
+```{r}
+results_df |>
+  dplyr::filter(#p_slab != 0,
+                n_students == 75
+                #n_schools == 150
+                ) |>
+  dplyr::mutate(sd_slab = factor(round(sd_slab,2))) |>
+  ggplot(aes(y = rmse, x = sd_slab, color = model, fill = model)) +
+  geom_boxplot(position = position_dodge(preserve = "single"), alpha = 0.5 )+
+  theme_bw(16) +
+  scale_color_manual(
+      values = c("coral", "cornflowerblue")
+    , labels = c("Two-stage HLM", "SS-MELSM")
+    ) +
+   scale_fill_manual(
+      values = c("coral", "cornflowerblue")
+    , labels = c("Two-stage HLM", "SS-MELSM")
+    ) +
+  theme(legend.position = "bottom") +
+  facet_grid(#n_students
+             n_schools
+             ~ p_slab, labeller = label_both) +
+  labs(x = "True random intercept SD",
+       y = "RMSE",
+       title = "RMSE for 75 students")
+
 ```
