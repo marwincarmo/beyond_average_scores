@@ -103,7 +103,7 @@ for (i in 1:nrow(sim_conditions_grid)) {
                        bval = bval_scale
                        )
 
-     parameters <- c("v_final", "sigma_rand", "delta", "tau", "R")
+     parameters <- c("v_final", "sigma_rand",  "delta", "tau", "R")
 
      fit_jags <- jags.parallel(jags_data,
                                parameters.to.save = parameters,
@@ -115,7 +115,7 @@ for (i in 1:nrow(sim_conditions_grid)) {
      ## JAGS samples
      delta_samples <- fit_jags$BUGSoutput$sims.list$delta
      pip <- colMeans(delta_samples)
-     s_ranefs <- colMeans(fit_jags$BUGSoutput$sims.list$s_theta_0)
+     s_ranefs <- colMeans(fit_jags$BUGSoutput$sims.list$v_final[, , 2])
      schoolid <- unique(d$school)
 
      ## extract to level 2
