@@ -1,5 +1,7 @@
-# In this simulation study we compare the performance of ivd to a two-stage HLM (Raudenbush & Bryk, 1987)
-# in identifying clustering units with unusual variability.
+## This script updates the first simulation study by adding a correlation between the location
+## and scale random effects. Additionally, we also compare the performance of ivd and hlm
+## in identifying unusually high or low variability as qualitatively different.
+## The JAGS model has been updated to account for this correlation.
 
 ## 0 Load in required packages -----
 
@@ -28,7 +30,7 @@ grid_with_slab <- expand.grid(
   eta0       = -0.25,
   p_slab     = c(0.05, 0.1, 0.25),   # only non-zero slab probs
   sd_slab    = sd_scl_intc,          # all non-zero sd values
-  cor_li_si  = 0
+  cor_li_si  = c(0., 0.5)
 )
 
 # Grid for when there are NO slab schools
@@ -38,13 +40,13 @@ grid_no_slab <- expand.grid(
   eta0       = -0.25,
   p_slab     = 0,   # no slab
   sd_slab    = 0,   # forced zero here
-  cor_li_si  = 0
+  cor_li_si  = 0    # with all schools in the 01_report_ivd-v-hlm_spike.Rmd
 )
 
 # Combine them into the final grid
 sim_conditions_grid <- rbind(grid_no_slab, grid_with_slab)
 
-reps  <- 100
+reps  <- 1
 results_list <- list()
 
 for (i in 1:nrow(sim_conditions_grid)) {
@@ -82,27 +84,37 @@ for (i in 1:nrow(sim_conditions_grid)) {
      ## The results of both are virtually identical
 
      d$intercept <- 1
+     ## Create the bval vector for the spike-and-slab priors on scale effects
+     bval_scale <- matrix(rep(0.5, 1), ncol = 1) ## prior probability of delta
 
-     jags_data <- list(y = d$y,
-                       unit = d$school,
-                       N = length(d$y),
-                       X = matrix(d$intercept, ncol = 1),
-                       P = 1,
-                       J = length(unique(d$school)))
+     jags_data <- list(Y = d$y,
+                       groupid = d$school, # school ids
+                       N = length(d$y), # number of obs
+                       X = matrix(d$intercept, ncol = 1), # location predictor matrix (intercept only)
+                       X_scale = matrix(d$intercept, ncol = 1), # location random predictor matrix
+                       Z = matrix(d$intercept, ncol = 1),
+                       Z_scale =  matrix(d$intercept, ncol = 1),
+                       P = 2, # number of random effects
+                       J = length(unique(d$school)),
+                       K = 1, # location fixed effects
+                       S = 1, # scale fixed effects
+                       Kr = 1, # location random effects
+                       Sr = 1, # scale random effects
+                       bval = bval_scale
+                       )
 
-     parameters <- c("beta", "s_beta_0", "s_theta_0", "s_tau_0", "gamma", "precision_j")
+     parameters <- c("v_final", "sigma_rand", "delta", "tau", "R")
 
      fit_jags <- jags.parallel(jags_data,
                                parameters.to.save = parameters,
-                               model.file = "models/SpikeSlab.bug",
+                               model.file = "models/SpikeSlab_cor_ranef.bug",
                                n.iter = 5000,
                                n.chains = 4
                                )
 
      ## JAGS samples
-     gamma_samples <- fit_jags$BUGSoutput$sims.list$gamma
-     pip <- colMeans(gamma_samples)
-     s_ranefs <- colMeans(fit_jags$BUGSoutput$sims.list$s_theta_0)
+     delta_samples <- fit_jags$BUGSoutput$sims.list$delta
+     pip <- colMeans(delta_samples)
      schoolid <- unique(d$school)
 
      ## extract to level 2
@@ -143,8 +155,10 @@ for (i in 1:nrow(sim_conditions_grid)) {
 
      metafor_flagged_empirical <- qq_outside(Zi_metafor)
 
-     ## random effects estiamte
-     s_ranefs_hlm <- ranef(fit_metafor)$pred
+     ## post-hoc computation of the random effects' correlation
+     u_j <- ranef(fit_lmer)$school$`(Intercept)`
+     v_j <- ranef(fit_metafor)$pred
+     cor_uv <- cor(u_j, v_j)
 
      ## collect metrics of true and false positives/negatives
      tp_hlm <- sum(metafor_flagged_empirical %in% true_slab_ids)
@@ -152,35 +166,21 @@ for (i in 1:nrow(sim_conditions_grid)) {
      fn_hlm <- P_slab - tp_hlm
      tn_hlm <- N_baseline - fp_hlm
 
-     tp_ranef_hlm <- s_ranefs_hlm[metafor_flagged_empirical[metafor_flagged_empirical %in% true_slab_ids]]
-     fp_ranef_hlm <- s_ranefs_hlm[metafor_flagged_empirical[metafor_flagged_empirical %in% schoolid[!schoolid %in% true_slab_ids]]]
-     tp_low_hlm <- sum(tp_ranef_hlm < 0)
-     tp_high_hlm <- sum(tp_ranef_hlm > 0)
-     fp_low_hlm <- sum(fp_ranef_hlm < 0)
-     fp_high_hlm <- sum(fp_ranef_hlm > 0)
-
      tp_ivd <- sum(flagged_ids %in% true_slab_ids)
      fp_ivd <- sum(flagged_ids %in% schoolid[!schoolid %in% true_slab_ids])
      fn_ivd <- P_slab - tp_ivd
      tn_ivd <- N_baseline - fp_ivd
 
-     tp_ranef_ivd <- s_ranefs[flagged_ids[flagged_ids %in% true_slab_ids]]
-     fp_ranef_ivd <- s_ranefs[flagged_ids[flagged_ids %in% schoolid[!schoolid %in% true_slab_ids]]]
-     tp_low_ivd <- sum(tp_ranef_ivd < 0)
-     tp_high_ivd <- sum(tp_ranef_ivd > 0)
-     fp_low_ivd <- sum(fp_ranef_ivd < 0)
-     fp_high_ivd <- sum(fp_ranef_ivd > 0)
-
 
      results_list[[length(results_list) + 1]] <- data.frame(
        condition_id = i, replication = rep,
        params,
-       ivd_sd_scl_Intc = fit_jags$BUGSoutput$mean$s_tau_0,
+       ivd_sd_scl_Intc = fit_jags$BUGSoutput$mean$sigma_rand[2],
        hlm_sd_scl_Intc = sqrt(fit_metafor$tau2),
+       r_ivd = colMeans(fit_jags$BUGSoutput$sims.list$R)[1,2],
+       r_hlm = cor_uv,
        tp_hlm, fp_hlm, fn_hlm, tn_hlm,
-       tp_high_hlm, tp_low_hlm, fp_high_hlm, fp_low_hlm,
-       tp_ivd, fp_ivd, fn_ivd, tn_ivd,
-       tp_high_ivd, tp_low_ivd, fp_high_ivd, fp_low_ivd
+       tp_ivd, fp_ivd, fn_ivd, tn_ivd
      )
 
   }

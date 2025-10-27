@@ -1,0 +1,54 @@
+---
+title: "SS-MELSM vs Two-stage HLM"
+subtitle: "Study 1: Main simulation"
+author: Marwin Carmo
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.width=10, fig.height=7, echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(reactable)
+library(MESS)
+library(latex2exp)
+```
+
+
+```{r}
+# Data import and transformation
+
+results_raw <- readRDS("../data/output/01_simulation_main_results.rds")
+
+results_df <- results_raw |>
+  dplyr::mutate(
+         bias_ivd = jags_sd_scl_Intc - sd_slab,
+         bias_hlm = sd_scl_Intc - sd_slab,
+         rmse_ivd = sqrt((jags_sd_scl_Intc - sd_slab)^2),
+         rmse_hlm = sqrt((sd_scl_Intc - sd_slab)^2)) |>
+  tidyr::pivot_longer(
+    cols = matches("^(tp|fp|fn|tn|bias|rmse)_"),  # Metrics prefixed columns
+    names_to = c("metric", "model"),
+    names_pattern = "^(tp|fp|fn|tn|bias|rmse)_(.+)$",
+    values_to = "value"
+    ) |>
+  # fix model names
+  dplyr::mutate(model = dplyr::case_when(
+                               model == "rb" ~ "hlm",
+                               model == "jags" ~ "ivd",
+                               TRUE ~ model)) |>
+  tidyr::pivot_wider(
+         names_from = metric,
+         values_from = value) |>
+  tidyr::replace_na(list(fn = 0)) |>
+  dplyr::mutate(
+         tpr = tp / (tp + fn),
+         fpr = fp / (fp + tn),
+         tnr = tn / (tn + fp),
+         precision = tp / (tp + fp),
+         f1 = 2 * (precision * tpr) / (precision + tpr)
+         )
+
+```
