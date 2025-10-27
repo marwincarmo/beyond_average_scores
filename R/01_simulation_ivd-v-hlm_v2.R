@@ -115,6 +115,7 @@ for (i in 1:nrow(sim_conditions_grid)) {
      ## JAGS samples
      delta_samples <- fit_jags$BUGSoutput$sims.list$delta
      pip <- colMeans(delta_samples)
+     s_ranefs <- colMeans(fit_jags$BUGSoutput$sims.list$s_theta_0)
      schoolid <- unique(d$school)
 
      ## extract to level 2
@@ -155,6 +156,9 @@ for (i in 1:nrow(sim_conditions_grid)) {
 
      metafor_flagged_empirical <- qq_outside(Zi_metafor)
 
+     ## random effects estiamte
+     s_ranefs_hlm <- ranef(fit_metafor)$pred
+
      ## post-hoc computation of the random effects' correlation
      u_j <- ranef(fit_lmer)$school$`(Intercept)`
      v_j <- ranef(fit_metafor)$pred
@@ -166,10 +170,24 @@ for (i in 1:nrow(sim_conditions_grid)) {
      fn_hlm <- P_slab - tp_hlm
      tn_hlm <- N_baseline - fp_hlm
 
+     tp_ranef_hlm <- s_ranefs_hlm[metafor_flagged_empirical[metafor_flagged_empirical %in% true_slab_ids]]
+     fp_ranef_hlm <- s_ranefs_hlm[metafor_flagged_empirical[metafor_flagged_empirical %in% schoolid[!schoolid %in% true_slab_ids]]]
+     tp_low_hlm <- sum(tp_ranef_hlm < 0)
+     tp_high_hlm <- sum(tp_ranef_hlm > 0)
+     fp_low_hlm <- sum(fp_ranef_hlm < 0)
+     fp_high_hlm <- sum(fp_ranef_hlm > 0)
+
      tp_ivd <- sum(flagged_ids %in% true_slab_ids)
      fp_ivd <- sum(flagged_ids %in% schoolid[!schoolid %in% true_slab_ids])
      fn_ivd <- P_slab - tp_ivd
      tn_ivd <- N_baseline - fp_ivd
+
+     tp_ranef_ivd <- s_ranefs[flagged_ids[flagged_ids %in% true_slab_ids]]
+     fp_ranef_ivd <- s_ranefs[flagged_ids[flagged_ids %in% schoolid[!schoolid %in% true_slab_ids]]]
+     tp_low_ivd <- sum(tp_ranef_ivd < 0)
+     tp_high_ivd <- sum(tp_ranef_ivd > 0)
+     fp_low_ivd <- sum(fp_ranef_ivd < 0)
+     fp_high_ivd <- sum(fp_ranef_ivd > 0)
 
 
      results_list[[length(results_list) + 1]] <- data.frame(
