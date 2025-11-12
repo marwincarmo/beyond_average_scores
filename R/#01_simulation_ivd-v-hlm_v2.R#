@@ -49,7 +49,7 @@ sim_conditions_grid <- grid_with_slab#rbind(grid_no_slab, grid_with_slab)
 reps  <- 100
 results_list <- list()
 
-for (i in 1:nrow(sim_conditions_grid)) {
+for (i in 7:nrow(sim_conditions_grid)) {
   params <- sim_conditions_grid[i, ]
 
   cat("Running condition:", i, "/", nrow(sim_conditions_grid), "\n")
