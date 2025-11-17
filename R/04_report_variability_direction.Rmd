@@ -1,0 +1,117 @@
+---
+title: "SS-MELSM vs Two-stage HLM"
+subtitle: "Study 4: Testing the influence of the direction of variability in TPR and FPR"
+header-includes:
+      - \usepackage{pdflscape}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.width=12, fig.height=8, echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+In this report we test whether the differences between SS-MELSM and Two-stage HLM in Sensitivity and Specificity are driven by their potentially distinct performance in indentifying schools with either high or low variability. That is, we test if these approaches perform differently when sensitivity and specificity results are separated by unusually high or low variability. Unusually high or low variability is determined by random effects of the scale intercept greater or smaller than zero, respectively. 
+
+Note that for these simulations the number of schools was fixed to 150. 
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+```
+
+```{r}
+## Data import and transformation
+
+results2_raw <- rbind(readRDS("data/output/03_simulation_main_results_r2_19.rds"), ## conditions 1-19
+                      readRDS("data/output/03_simulation_main_results_r2_20.rds")) ## conditions 20-39
+
+
+rates_by_condition <- results2_raw |>
+  dplyr::select(condition_id, replication, n_students, n_schools,
+                p_slab, sd_slab, dplyr::starts_with(c("tp", "fp", "tn", "fn"))) |>
+  tidyr::pivot_longer(
+    cols = matches("^(tp|fp|fn|tn)_"),  # Metrics prefixed columns
+    names_to = c("metric", "model"),
+    names_pattern = "(.+)_(hlm|ivd)$",
+    values_to = "value"
+    ) |>
+   tidyr::pivot_wider(
+         names_from = metric,
+         values_from = value) |>
+  dplyr::mutate(
+           tpr = tp / (tp + fn),
+           fpr = fp / (fp + tn),
+           tpr_high = tp_high / (tp + fn),
+           tpr_low = tp_low / (tp + fn),
+           fpr_high = fp_high / (fp + tn),
+           fpr_low = fp_low / (fp + tn)) |>
+  tidyr::replace_na(list(tpr = 0, tpr_high = 0,
+                         tpr_low = 0)) |>
+  dplyr::group_by(n_students, p_slab, sd_slab, model) |>
+  dplyr::summarise(
+           tpr_high = mean(tpr_high, na.rm = TRUE),
+           tpr_low  = mean(tpr_low, na.rm = TRUE),
+           fpr_high = mean(fpr_high, na.rm = TRUE),
+           fpr_low  = mean(fpr_low, na.rm = TRUE),
+           .groups = "drop") |>
+  tidyr::pivot_longer(
+           cols = dplyr::matches("^(tpr|fpr)_"),
+           names_to = c("component", "direction"),
+           values_to = "mean_rate",
+           names_sep = "_") |>
+  dplyr::group_by(n_students, p_slab, sd_slab, model, component) |>
+  dplyr::mutate(
+    total_rate = sum(mean_rate),
+    percentage = mean_rate / total_rate,
+    .groups = "drop"
+    ) |>
+  dplyr::mutate(percentage = dplyr::if_else(is.nan(percentage), 0, percentage))
+```
+
+## True positive rate (sensitivity)
+
+```{r}
+rates_by_condition |>
+  dplyr::mutate(sd_slab = factor(round(sd_slab, 2))) |>
+  dplyr::filter(component == "tpr", p_slab != 0) |>
+  ggplot(aes(x=sd_slab, y = mean_rate, fill = direction)) +
+  geom_col(position = "stack", color = "black", alpha = 0.8) +
+  geom_text(
+    aes(label = if_else(percentage > 0.02, # only label if > 2%
+                        scales::percent(percentage, accuracy = 1L),
+                        "")),
+    position = position_stack(vjust = 0.5), # centers text in each segment
+    color = "white", 
+    size = 3.5 
+  ) +
+  facet_grid(n_students ~ p_slab + model, labeller = label_both) +
+  theme_bw(16) +
+  theme(legend.position = "bottom") +
+  scale_fill_brewer(palette = "Set1") +
+  labs(y = "Average TPR", x = "True random effect SD")
+```
+
+## False positive rate (specificity)
+
+```{r}
+rates_by_condition |>
+  dplyr::mutate(sd_slab = factor(round(sd_slab, 2))) |>
+  dplyr::filter(component == "fpr") |>
+  ggplot(aes(x=sd_slab, y = mean_rate, fill = direction)) +
+  geom_col(position = "stack", color = "black", alpha = 0.8) +
+  geom_text(
+    aes(label = if_else(percentage > 0.02,
+                        scales::percent(percentage, accuracy = 1L),
+                        "")),
+    position = position_stack(vjust = 0.5), 
+    color = "white",
+    size = 3.5
+  ) +
+  facet_grid(n_students ~ p_slab + model, labeller = label_both,
+             scales = "free_x") +
+  theme_bw(16) +
+  theme(legend.position = "bottom",
+        axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_fill_brewer(palette = "Set1") +
+  labs(y = "Average FPR", x = "True random effect SD")
+```

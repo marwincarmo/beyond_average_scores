@@ -146,7 +146,7 @@ results_df |>
 # Bias
 
 ```{r}
-results_df2 <- readRDS("../data/output/01_simulation_main_results_spiked.rds") |> 
+results_df2 <- readRDS("..data/output/01_simulation_main_results_spiked.rds") |> 
   dplyr::mutate(ivd_sd_scl_Intc =  dplyr::coalesce(ivd_sd_scl_Intc, jags_sd_scl_Intc)) |> 
   dplyr::select(-jags_sd_scl_Intc) |> 
   dplyr::mutate(
@@ -173,7 +173,7 @@ results_df2 <- readRDS("../data/output/01_simulation_main_results_spiked.rds") |
 
 
 ```{r}
-results_df |> 
+results_df2 |> 
   dplyr::filter(#p_slab != 0,
                 n_students == 75
                 #n_schools == 150
