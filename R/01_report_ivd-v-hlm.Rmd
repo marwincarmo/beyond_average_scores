@@ -1,7 +1,6 @@
 ---
 title: "SS-MELSM vs Two-stage HLM"
 subtitle: "Study 1: Main simulation"
-author: Marwin Carmo
 ---
 
 ```{r setup, include=FALSE}
@@ -54,7 +53,7 @@ results_df <- results_raw |>
 ```
 # Uncorrelated random effects ($\rho_{u_0t_0} = 0$)
 
-## True Positive Rate (Sensitivity)
+## True Positive Rate
 
 ```{r}
 results_df |>
@@ -84,7 +83,7 @@ results_df |>
 
 ```
 
-## False Positive Rate (Specificity)
+## False Positive Rate
 
 ```{r}
 results_df |>
@@ -155,6 +154,7 @@ results_df |>
   dplyr::mutate(sd_slab = factor(round(sd_slab,2))) |>
   ggplot(aes(y = bias, x = sd_slab, color = model, fill = model)) +
   geom_boxplot(position = position_dodge(preserve = "single"), alpha = 0.5 )+
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
   theme_bw(16) +
   scale_color_manual(
       values = c("coral", "cornflowerblue")
@@ -185,6 +185,7 @@ results_df |>
   dplyr::mutate(sd_slab = factor(round(sd_slab,2))) |>
   ggplot(aes(y = rmse, x = sd_slab, color = model, fill = model)) +
   geom_boxplot(position = position_dodge(preserve = "single"), alpha = 0.5 )+
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
   theme_bw(16) +
   scale_color_manual(
       values = c("coral", "cornflowerblue")
@@ -237,7 +238,7 @@ results_df_cor <- results_cor |>
          )
 ```
 
-## True positive rate (Sensitivity)
+## True positive rate
 
 ```{r}
 results_df_cor |>
@@ -263,7 +264,7 @@ results_df_cor |>
        title = "TPR for 150 schools")
 ```
 
-## False positive rate (Specifitiy)
+## False positive rate
 
 ```{r}
 results_df_cor |>
@@ -380,6 +381,7 @@ results_df_cor |>
   ggplot(aes(y = r, x = sd_slab, color = model, fill = model)) +
   geom_boxplot(position = position_dodge(preserve = "single"), alpha = 0.5 )+
   geom_hline(yintercept = 0.5, linetype = "dashed", color = "red") +
+  scale_y_continuous(breaks = seq(-0.5,0.5, by =0.5)) +
   theme_bw(16) +
   scale_color_manual(
       values = c("coral", "cornflowerblue")
@@ -395,5 +397,6 @@ results_df_cor |>
              ~ p_slab, labeller = label_both) +
   labs(x = "True random intercept SD",
        y = "R[sd_loc_intc, sd_scale_intc]",
-       title = "Correlation between location and scale random effects\nfor 150 schools")
+       title = "Correlation between location and scale random effects\nfor 150 schools",
+       subtitle = "True correlation of 0.5")
 ```

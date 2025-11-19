@@ -211,3 +211,56 @@ results_tpr|>
     y = "True Positive (proxy) Rate",
     title = "TPR by tail direction (150 schools)"
   )
+
+## Sensitivity for p_slab = 0
+
+results2_raw |>
+  dplyr::filter(p_slab == 0) |>
+  tidyr::pivot_longer(
+    cols = matches("^(tp|fp|fn|tn)_"),  # Metrics prefixed columns
+    names_to = c("metric", "model"),
+    names_pattern = "^(tp|fp|fn|tn)_(.+)$",
+    values_to = "value"
+    ) |>
+  tidyr::pivot_wider(
+           names_from = metric,
+           values_from = value) |>
+  tidyr::replace_na(list(fn = 0)) |>
+  dplyr::mutate(
+           tpr = tp / (tp + fn),
+           fpr = fp / (fp + tn),
+           tnr = tn / (tn + fp),
+           precision = tp / (tp + fp),
+           f1 = 2 * (precision * tpr) / (precision + tpr)
+         ) |>
+  dplyr::group_by(n_students, model) |>
+  dplyr::summarise(avg_tnr = mean(tnr, na.rm = TRUE))
+
+results_df <- results_raw |>
+  dplyr::mutate(
+         bias_ivd = ivd_sd_scl_Intc - sd_slab,
+         bias_hlm = hlm_sd_scl_Intc - sd_slab,
+         rmse_ivd = sqrt((ivd_sd_scl_Intc - sd_slab)^2),
+         rmse_hlm = sqrt((hlm_sd_scl_Intc - sd_slab)^2)) |>
+  tidyr::pivot_longer(
+    cols = matches("^(tp|fp|fn|tn|bias|rmse|r)_"),  # Metrics prefixed columns
+    names_to = c("metric", "model"),
+    names_pattern = "^(tp|fp|fn|tn|bias|rmse|r)_(.+)$",
+    values_to = "value"
+    ) |>
+  # fix model names
+  ## dplyr::mutate(model = dplyr::case_when(
+  ##                              model == "rb" ~ "hlm",
+  ##                              model == "jags" ~ "ivd",
+  ##                              TRUE ~ model)) |>
+  tidyr::pivot_wider(
+         names_from = metric,
+         values_from = value) |>
+  tidyr::replace_na(list(fn = 0)) |>
+  dplyr::mutate(
+         tpr = tp / (tp + fn),
+         fpr = fp / (fp + tn),
+         tnr = tn / (tn + fp),
+         precision = tp / (tp + fp),
+         f1 = 2 * (precision * tpr) / (precision + tpr)
+         )

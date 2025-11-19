@@ -22,8 +22,8 @@ library(ggplot2)
 ```{r}
 ## Data import and transformation
 
-results2_raw <- rbind(readRDS("data/output/03_simulation_main_results_r2_19.rds"), ## conditions 1-19
-                      readRDS("data/output/03_simulation_main_results_r2_20.rds")) ## conditions 20-39
+results2_raw <- rbind(readRDS("../data/output/03_simulation_main_results_r2_19.rds"), ## conditions 1-19
+                      readRDS("../data/output/03_simulation_main_results_r2_20.rds")) ## conditions 20-39
 
 
 rates_by_condition <- results2_raw |>
@@ -68,7 +68,7 @@ rates_by_condition <- results2_raw |>
   dplyr::mutate(percentage = dplyr::if_else(is.nan(percentage), 0, percentage))
 ```
 
-## True positive rate (sensitivity)
+## True positive rate
 
 ```{r}
 rates_by_condition |>
@@ -91,7 +91,7 @@ rates_by_condition |>
   labs(y = "Average TPR", x = "True random effect SD")
 ```
 
-## False positive rate (specificity)
+## False positive rate
 
 ```{r}
 rates_by_condition |>
