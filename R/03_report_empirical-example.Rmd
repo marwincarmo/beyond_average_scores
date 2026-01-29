@@ -5,7 +5,7 @@ author: Marwin Carmo
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(fig.width=10, fig.height=7, echo = FALSE, message = FALSE, warning = FALSE)
+knitr::opts_chunk$set(fig.width=10, fig.height=7, echo = TRUE, message = FALSE, warning = FALSE)
 ```
 
 
@@ -41,7 +41,7 @@ saeb$school_ses <- c(scale(saeb$school_ses, scale = FALSE))
 out <- ivd(location_formula = math_proficiency ~ student_ses * school_ses + (1|school_id),
            scale_formula =  ~ student_ses * school_ses + (1|school_id),
            data = saeb,
-           niter = 3000, nburnin = 5000, WAIC = TRUE, workers = 6)
+           niter = 3000, nburnin = 12000, WAIC = TRUE, workers = 6)
 ```
 
 ## Posterior Inclusion Probabilities
@@ -85,7 +85,8 @@ p3 +
 ## Caterpillar plot
 
 ```{r}
-# We'll need to use `.summary_table()` and `.extract_to_mcmc()`, which are internal functions from `ivd`, that are not meant for direct use
+# We'll need to use `.summary_table()` and `.extract_to_mcmc()`, which are internal
+# functions from `ivd`, that are not meant for direct use
 
 col_names <- dimnames(ivd:::.summary_table(out$samples[[1]]$samples ))[[2]]
 Kr <- out$nimble_constants$Kr
@@ -104,7 +105,8 @@ column_indices <- sapply(col_names, function(x) {
 })
 
 scale_ranef_pos <- which(column_indices)
-posterior_samples <- do.call(rbind, lapply(ivd:::.extract_to_mcmc(out), FUN = function(x) x[, scale_ranef_pos]))
+posterior_samples <- do.call(rbind, lapply(ivd:::.extract_to_mcmc(out),
+                                           FUN = function(x) x[, scale_ranef_pos]))
 ## Find the largest residual SD
 ## Extract the posterior mean of the fixed effect:
 zeta <- mean( unlist( lapply(ivd:::.extract_to_mcmc( out ), FUN = function(x) mean(x[, "zeta[1]"])) ) )
@@ -150,8 +152,8 @@ df_hist |>
   theme_minimal(16) +
   guides(color = "none", fill = "none") +
   theme(
-    axis.text.y = element_blank(),   # Hides the y-axis text (values)
-    axis.title.y = element_blank()   # Hides the y-axis title (label)
+    axis.text.y = element_blank(),  
+    axis.title.y = element_blank()   
   ) +
   labs(x = "Spike-and-slab posterior distribution")
 ```
@@ -179,7 +181,7 @@ means_list <- lapply(subsamples, colMeans)
 final_means <- Reduce("+", means_list) / length(means_list)
 ## assign the means to the specific random effects
 ss_means <- list()
-## Select the ss effect(s)
+## Select the ss effects
 Sr <- out$nimble_constants$Sr
 for(i in 1:Sr ) {
   index <- paste0("\\[",  i+Kr)
@@ -204,7 +206,7 @@ u_ordered$ordered <- 1:nrow(u_summary )
 ggplot(u_ordered, aes(x = ordered, y = Median)) +
   geom_pointrange(
     aes(ymin = Lower95CI, ymax = Upper95CI),
-    size = 0.7,  # Thicker lines for better visibility
+    size = 0.7, 
     linetype = "solid",
     color = "black",
     alpha = 0.7
